@@ -1,0 +1,125 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  # ─────────────────────────────────────────────
+  # 1. Backend — lint, typecheck, unit tests
+  # ─────────────────────────────────────────────
+  backend-lint-and-test:
+    name: Backend — Lint & Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript compile check
+        run: npx tsc --noEmit
+
+      - name: Run unit tests
+        run: npm test
+
+  # ─────────────────────────────────────────────
+  # 2. Infrastructure — CDK synth
+  # ─────────────────────────────────────────────
+  infrastructure-synth:
+    name: Infrastructure — CDK Synth
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infrastructure
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: infrastructure/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript compile check
+        run: npx tsc --noEmit
+
+      - name: CDK synth (validate all stacks)
+        run: npx cdk synth
+        env:
+          CDK_DEFAULT_ACCOUNT: "000000000000"
+          CDK_DEFAULT_REGION: us-east-1
+
+      - name: Upload CloudFormation templates
+        uses: actions/upload-artifact@v4
+        with:
+          name: cdk-output
+          path: infrastructure/cdk.out/
+
+  # ─────────────────────────────────────────────
+  # 3. Security — dependency audit + secret scan
+  # ─────────────────────────────────────────────
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # SEC-10: npm audit — backend (blocking on high/critical)
+      - name: Audit backend dependencies
+        working-directory: backend
+        run: |
+          npm ci
+          npm audit --audit-level=high
+
+      # SEC-10: npm audit — infrastructure
+      - name: Audit infrastructure dependencies
+        working-directory: infrastructure
+        run: |
+          npm ci
+          npm audit --audit-level=high
+
+      # SEC-12: Scan for hardcoded secrets
+      - name: Scan for secrets (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # SEC-13: CodeQL SAST for TypeScript
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+
+      - name: CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript-typescript"

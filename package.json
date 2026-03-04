@@ -1,0 +1,20 @@
+{
+  "name": "second-brain",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Personal knowledge management system with Slack capture, vector search, and MCP server on AWS",
+  "workspaces": [
+    "backend",
+    "infrastructure"
+  ],
+  "scripts": {
+    "test": "cd backend && npm test",
+    "lint": "cd backend && npx tsc --noEmit",
+    "audit": "npm audit --audit-level=moderate",
+    "synth": "cd infrastructure && npx cdk synth",
+    "deploy": "cd infrastructure && npx cdk deploy --all"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

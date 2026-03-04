@@ -1,0 +1,23 @@
+{
+  "name": "second-brain-infrastructure",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AWS CDK infrastructure for Second Brain",
+  "scripts": {
+    "build": "tsc",
+    "synth": "cdk synth",
+    "deploy": "cdk deploy --all",
+    "diff": "cdk diff"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.170.0",
+    "constructs": "^10.4.0",
+    "source-map-support": "^0.5.21"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "aws-cdk": "^2.170.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.5.0"
+  }
+}
