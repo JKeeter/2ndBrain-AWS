@@ -37,6 +37,11 @@ const TOOL_DEFINITIONS = [
           type: 'number',
           description: 'Maximum number of results to return (1-50, default 10)',
         },
+        type: {
+          type: 'string',
+          description:
+            'Optional filter by thought type: idea, task, observation, question, reference, meeting, decision, person, needs_review',
+        },
       },
       required: ['query'],
     },
@@ -51,7 +56,7 @@ const TOOL_DEFINITIONS = [
         type: {
           type: 'string',
           description:
-            'Filter by thought type: idea, task, note, question, reference, meeting, decision',
+            'Filter by thought type: idea, task, observation, question, reference, meeting, decision, person, needs_review',
         },
         start_date: {
           type: 'string',
@@ -126,6 +131,16 @@ export const handler = async (
   const logger = createLogger(event);
 
   try {
+    // MCP Streamable HTTP: handle GET (SSE) and DELETE (session close)
+    if (event.httpMethod === 'GET') {
+      // GET opens an SSE notification stream — not supported by this stateless server
+      return jsonResponse(405, { error: 'SSE not supported' });
+    }
+    if (event.httpMethod === 'DELETE') {
+      // DELETE closes a session — stateless, so always OK
+      return jsonResponse(200, {});
+    }
+
     // SEC-08: Verify API key — fail-closed
     const apiKey = event.headers['x-brain-key'] ?? event.headers['X-Brain-Key'];
     const isValid = await verifyMcpApiKey(apiKey, logger);

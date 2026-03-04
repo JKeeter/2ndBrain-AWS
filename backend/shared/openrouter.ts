@@ -1,5 +1,6 @@
 import { getSecret } from './auth';
 import type { Logger } from './logger';
+import { VALID_THOUGHT_TYPES, type ThoughtType } from './types';
 
 /**
  * OpenRouter API client for text embeddings and LLM metadata extraction.
@@ -23,6 +24,7 @@ async function openRouterRequest(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(10_000),
   });
 
   if (!response.ok) {
@@ -56,7 +58,7 @@ export async function extractMetadata(
   text: string,
   logger: Logger,
 ): Promise<{
-  type: string;
+  type: ThoughtType;
   topics: string[];
   people: string[];
   action_items: string[];
@@ -71,13 +73,25 @@ export async function extractMetadata(
           role: 'system',
           content: `Extract metadata from the following thought/note. Respond with ONLY valid JSON matching this schema:
 {
-  "type": "one of: idea, task, note, question, reference, meeting, decision",
+  "type": "one of: idea, task, observation, question, reference, meeting, decision, person, needs_review",
   "topics": ["array of key topics/themes"],
   "people": ["array of people mentioned"],
   "action_items": ["array of action items if any"],
   "dates": ["array of dates mentioned in ISO 8601 format"]
 }
-If a field has no matches, use an empty array. For type, pick the most appropriate one.`,
+
+Type guidelines:
+- "task": actionable items with clear deliverables or deadlines
+- "idea": creative thoughts, proposals, or brainstorming
+- "observation": factual notes, records, or general information
+- "question": open questions to revisit or research
+- "reference": links, articles, resources, or external references
+- "meeting": meeting notes, summaries, or outcomes
+- "decision": records of decisions made
+- "person": notes primarily about a specific person (feedback, preferences, background, relationships)
+- "needs_review": message is too ambiguous, too short, or lacks enough context to confidently classify (bare URLs, single words, fragments, unclear intent)
+
+If a field has no matches, use an empty array. Pick the single most appropriate type.`,
         },
         { role: 'user', content: text },
       ],
@@ -97,8 +111,11 @@ If a field has no matches, use an empty array. For type, pick the most appropria
   const parsed = JSON.parse(jsonStr) as Record<string, unknown>;
 
   // Defensive type coercion — LLM output is untrusted
+  const rawType = typeof parsed.type === 'string' ? parsed.type : 'observation';
   return {
-    type: typeof parsed.type === 'string' ? parsed.type : 'note',
+    type: VALID_THOUGHT_TYPES.includes(rawType as ThoughtType)
+      ? (rawType as ThoughtType)
+      : 'observation',
     topics: filterStrings(parsed.topics),
     people: filterStrings(parsed.people),
     action_items: filterStrings(parsed.action_items),

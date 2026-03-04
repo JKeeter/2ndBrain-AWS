@@ -197,7 +197,7 @@ describe('ingest-thought handler', () => {
       expect(mockPostThreadReply).toHaveBeenCalledWith(
         'C123',
         '1234567890.123456',
-        expect.stringContaining('Captured as note'),
+        expect.stringContaining('Captured as *note*'),
         expect.anything(),
       );
     });
@@ -330,14 +330,14 @@ describe('ingest-thought handler', () => {
       expect(JSON.parse(result.body)).toEqual({ error: 'Internal server error' });
     });
 
-    it('returns 500 with generic message when Slack reply fails', async () => {
+    it('returns 200 when Slack reply fails (thought already stored)', async () => {
       mockPostThreadReply.mockRejectedValueOnce(new Error('Slack API error'));
 
       const event = makeEvent();
       const result = await handler(event);
 
-      expect(result.statusCode).toBe(500);
-      expect(JSON.parse(result.body)).toEqual({ error: 'Internal server error' });
+      // Reply failure is isolated — thought is already stored, so return 200
+      expect(result.statusCode).toBe(200);
     });
   });
 });

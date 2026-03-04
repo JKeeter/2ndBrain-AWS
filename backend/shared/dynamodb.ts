@@ -1,6 +1,7 @@
 import {
   DynamoDBClient,
   PutItemCommand,
+  UpdateItemCommand,
   QueryCommand,
   ScanCommand,
   BatchGetItemCommand,
@@ -77,6 +78,56 @@ export async function putThought(params: {
       ),
     }),
   );
+}
+
+/** Update an existing thought's content, embedding, and metadata (for thread reply updates). */
+export async function updateThought(params: {
+  id: string;
+  content: string;
+  embedding: Float32Array;
+  metadata: ThoughtMetadata;
+}): Promise<void> {
+  const now = new Date().toISOString();
+
+  await client.send(
+    new UpdateItemCommand({
+      TableName: TABLE_NAME,
+      Key: marshall({ PK: 'THOUGHT', SK: `thought#${params.id}` }),
+      UpdateExpression:
+        'SET content = :content, embedding = :embedding, metadata = :metadata, ' +
+        'updated_at = :updated_at, thought_type = :thought_type',
+      ExpressionAttributeValues: marshall({
+        ':content': params.content,
+        ':embedding': embeddingToBuffer(params.embedding),
+        ':metadata': params.metadata,
+        ':updated_at': now,
+        ':thought_type': params.metadata.type,
+      }),
+    }),
+  );
+}
+
+/** Look up a thought by its Slack channel and timestamp (via GSI3-BySlackTs). */
+export async function getThoughtBySlackTs(
+  slackChannel: string,
+  slackTs: string,
+): Promise<ThoughtRecord | null> {
+  const result = await client.send(
+    new QueryCommand({
+      TableName: TABLE_NAME,
+      IndexName: 'GSI3-BySlackTs',
+      KeyConditionExpression: 'slack_channel = :channel AND slack_ts = :ts',
+      ExpressionAttributeValues: marshall({
+        ':channel': slackChannel,
+        ':ts': slackTs,
+      }),
+      Limit: 1,
+    }),
+  );
+
+  if (!result.Items?.length) return null;
+
+  return toThoughtRecord(unmarshall(result.Items[0]));
 }
 
 // --- Read operations ---

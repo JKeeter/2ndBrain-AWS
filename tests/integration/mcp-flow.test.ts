@@ -259,17 +259,17 @@ describe('MCP server integration flow', () => {
           SK: 'thought#xyz-789',
           content: 'Use cosine similarity for small scale',
           embedding: Buffer.from(new Float32Array([0.1]).buffer),
-          metadata: { type: 'note', topics: ['vectors'], people: [], action_items: [], dates: [], source: 'slack' },
+          metadata: { type: 'observation', topics: ['vectors'], people: [], action_items: [], dates: [], source: 'slack' },
           created_at: '2025-06-01T00:00:00Z',
           updated_at: '2025-06-01T00:00:00Z',
-          thought_type: 'note',
+          thought_type: 'observation',
         }],
       });
 
       const result = await handler(
         makeEvent('tools/call', {
           name: 'list_thoughts',
-          arguments: { type: 'note', limit: 10 },
+          arguments: { type: 'observation', limit: 10 },
         }),
       );
 

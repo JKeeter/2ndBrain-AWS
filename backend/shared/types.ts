@@ -1,5 +1,21 @@
+export type ThoughtType =
+  | 'idea'
+  | 'task'
+  | 'observation'
+  | 'question'
+  | 'reference'
+  | 'meeting'
+  | 'decision'
+  | 'person'
+  | 'needs_review';
+
+export const VALID_THOUGHT_TYPES: readonly ThoughtType[] = [
+  'idea', 'task', 'observation', 'question', 'reference',
+  'meeting', 'decision', 'person', 'needs_review',
+] as const;
+
 export interface ThoughtMetadata {
-  type: string;
+  type: ThoughtType;
   topics: string[];
   people: string[];
   action_items: string[];

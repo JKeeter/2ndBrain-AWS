@@ -189,7 +189,7 @@ describe('ingest-thought integration flow', () => {
     const slackPayload = JSON.parse(slackCall![1].body);
     expect(slackPayload.channel).toBe('C-BRAIN');
     expect(slackPayload.thread_ts).toBe('9999999999.000001');
-    expect(slackPayload.text).toContain('Captured as idea');
+    expect(slackPayload.text).toContain('Captured as *idea*');
     expect(slackPayload.text).toContain('integration-testing');
   });
 

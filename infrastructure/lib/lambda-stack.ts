@@ -65,10 +65,15 @@ export class LambdaStack extends cdk.Stack {
     });
 
     // SEC-06: Least-privilege IAM for ingest-thought
-    // DynamoDB write: PutItem only (creates new thoughts)
+    // DynamoDB write: PutItem (new thoughts) + UpdateItem (thread reply updates)
+    // DynamoDB read: Query on GSI3-BySlackTs (lookup original thought for thread replies)
     ingestFn.addToRolePolicy(new iam.PolicyStatement({
-      actions: ['dynamodb:PutItem'],
+      actions: ['dynamodb:PutItem', 'dynamodb:UpdateItem'],
       resources: [table.tableArn],
+    }));
+    ingestFn.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['dynamodb:Query'],
+      resources: [`${table.tableArn}/index/GSI3-BySlackTs`],
     }));
 
     // SSM read: GetParameter for 3 specific secrets

@@ -47,13 +47,19 @@ export const mcpRequestSchema = z.object({
 
 // --- MCP tool parameters ---
 
+const THOUGHT_TYPES = [
+  'idea', 'task', 'observation', 'question', 'reference',
+  'meeting', 'decision', 'person', 'needs_review',
+] as const;
+
 export const searchThoughtsParamsSchema = z.object({
   query: z.string().min(1).max(MAX_QUERY_LENGTH),
   limit: z.number().int().min(1).max(50).default(10),
+  type: z.enum(THOUGHT_TYPES).optional(),
 });
 
 export const listThoughtsParamsSchema = z.object({
-  type: z.string().max(64).optional(),
+  type: z.enum(THOUGHT_TYPES).optional(),
   start_date: z.string().datetime().optional(),
   end_date: z.string().datetime().optional(),
   limit: z.number().int().min(1).max(100).default(20),

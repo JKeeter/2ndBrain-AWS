@@ -34,6 +34,15 @@ export class DynamoDbStack extends cdk.Stack {
       projectionType: dynamodb.ProjectionType.KEYS_ONLY,
     });
 
+    // GSI3: Lookup thought by Slack channel + timestamp (for thread reply updates)
+    // Sparse index: only items with both slack_channel and slack_ts appear
+    this.table.addGlobalSecondaryIndex({
+      indexName: 'GSI3-BySlackTs',
+      partitionKey: { name: 'slack_channel', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'slack_ts', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
     new cdk.CfnOutput(this, 'TableName', {
       value: this.table.tableName,
       description: 'DynamoDB thoughts table name',

@@ -1,13 +1,101 @@
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { v4 } from 'uuid';
-import { createLogger } from '../../shared/logger';
+import { createLogger, type Logger } from '../../shared/logger';
 import { verifySlackSignature } from '../../shared/auth';
-import { slackPayloadSchema } from '../../shared/validation';
-import { putThought } from '../../shared/dynamodb';
+import { slackPayloadSchema, type SlackEvent } from '../../shared/validation';
+import { putThought, getThoughtBySlackTs, updateThought } from '../../shared/dynamodb';
 import { embedText, extractMetadata } from '../../shared/openrouter';
 import { postThreadReply } from '../../shared/slack';
 import { clearEmbeddingCache } from '../../shared/vector';
 import { success, errorResponse } from '../../shared/responses';
+
+/** Format the Slack confirmation reply with type-specific emojis. */
+function formatConfirmation(type: string, topics: string[]): string {
+  const topicsList = topics.length > 0 ? topics.join(', ') : 'none';
+
+  if (type === 'needs_review') {
+    return (
+      `:thinking_face: Captured as *needs_review*. Topics: ${topicsList}.\n\n` +
+      `Reply in this thread to add context — I'll re-classify automatically.`
+    );
+  }
+
+  const typeEmoji: Record<string, string> = {
+    task: ':white_check_mark:',
+    idea: ':bulb:',
+    observation: ':eyes:',
+    question: ':question:',
+    reference: ':link:',
+    meeting: ':calendar:',
+    decision: ':scales:',
+    person: ':bust_in_silhouette:',
+  };
+
+  const emoji = typeEmoji[type] ?? ':brain:';
+  return `${emoji} Captured as *${type}*. Topics: ${topicsList}.`;
+}
+
+/** Handle a Slack thread reply by updating the original thought. */
+async function handleThreadReply(
+  payload: SlackEvent,
+  logger: Logger,
+): Promise<APIGatewayProxyResult> {
+  const originalThought = await getThoughtBySlackTs(
+    payload.event.channel,
+    payload.event.thread_ts!,
+  );
+
+  if (!originalThought) {
+    logger.info('Thread reply to unknown thought, skipping', {
+      channel: payload.event.channel,
+      thread_ts: payload.event.thread_ts,
+    });
+    return success({ ok: true });
+  }
+
+  // Combine original content with the reply
+  const combinedContent = `${originalThought.content}\n\n---\nAdditional context: ${payload.event.text}`;
+
+  // Re-embed + re-extract in parallel
+  const [embedding, extractedMetadata] = await Promise.all([
+    embedText(combinedContent, logger),
+    extractMetadata(combinedContent, logger),
+  ]);
+
+  // Update in DynamoDB
+  await updateThought({
+    id: originalThought.id,
+    content: combinedContent,
+    embedding,
+    metadata: { ...extractedMetadata, source: originalThought.metadata.source },
+  });
+
+  clearEmbeddingCache();
+
+  // Reply in thread with update confirmation
+  try {
+    await postThreadReply(
+      payload.event.channel,
+      payload.event.thread_ts!,
+      formatConfirmation(extractedMetadata.type, extractedMetadata.topics).replace(
+        'Captured as',
+        'Updated! Re-classified as',
+      ),
+      logger,
+    );
+  } catch (replyErr) {
+    const msg = replyErr instanceof Error ? replyErr.message : 'Unknown error';
+    logger.error('Failed to post update reply', { error: msg });
+  }
+
+  logger.info('Thought updated via thread reply', {
+    thoughtId: originalThought.id,
+    oldType: originalThought.metadata.type,
+    newType: extractedMetadata.type,
+  });
+
+  return success({ ok: true });
+}
 
 /**
  * Slack webhook → embed → store → reply.
@@ -16,9 +104,10 @@ import { success, errorResponse } from '../../shared/responses';
  *  1. Verify Slack signature (SEC-08)
  *  2. Handle URL verification challenge
  *  3. Skip retries / bot messages / non-message events
- *  4. Parallel: embed text + extract metadata via OpenRouter
- *  5. Store thought in DynamoDB
- *  6. Reply in Slack thread with confirmation
+ *  4. Detect thread replies → update original thought
+ *  5. Parallel: embed text + extract metadata via OpenRouter
+ *  6. Store thought in DynamoDB
+ *  7. Reply in Slack thread with confirmation
  *
  * SEC-15: Global try/catch — fail closed on all errors.
  */
@@ -86,6 +175,13 @@ export const handler = async (
       return success({ ok: true });
     }
 
+    // --- Detect thread reply: thread_ts present AND different from ts ---
+    const isThreadReply =
+      payload.event.thread_ts && payload.event.thread_ts !== payload.event.ts;
+    if (isThreadReply) {
+      return await handleThreadReply(payload, logger);
+    }
+
     // --- Process: embed + metadata in parallel ---
     const [embedding, extractedMetadata] = await Promise.all([
       embedText(payload.event.text, logger),
@@ -107,16 +203,19 @@ export const handler = async (
     clearEmbeddingCache();
 
     // --- Reply in Slack thread ---
-    const topicsList =
-      extractedMetadata.topics.length > 0
-        ? extractedMetadata.topics.join(', ')
-        : 'none';
-    await postThreadReply(
-      payload.event.channel,
-      payload.event.ts,
-      `Captured as ${extractedMetadata.type}. Topics: ${topicsList}.`,
-      logger,
-    );
+    // Isolated try/catch: thought is already stored, so a reply failure
+    // should not return 500 (which triggers Slack retries that skip the reply).
+    try {
+      await postThreadReply(
+        payload.event.channel,
+        payload.event.ts,
+        formatConfirmation(extractedMetadata.type, extractedMetadata.topics),
+        logger,
+      );
+    } catch (replyErr) {
+      const msg = replyErr instanceof Error ? replyErr.message : 'Unknown error';
+      logger.error('Failed to post Slack thread reply', { error: msg });
+    }
 
     logger.info('Thought ingested', { thoughtId, type: extractedMetadata.type });
     return success({ ok: true });
