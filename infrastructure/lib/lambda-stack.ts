@@ -97,7 +97,7 @@ export class LambdaStack extends cdk.Stack {
 
     const mcpFn = new nodejs.NodejsFunction(this, 'McpServerFn', {
       functionName: 'second-brain-mcp-server',
-      description: 'MCP JSON-RPC server: search, list, stats, capture thoughts',
+      description: 'MCP JSON-RPC server: search, list, stats, capture, update, delete thoughts',
       runtime: lambda.Runtime.NODEJS_20_X,
       entry: path.join(BACKEND_DIR, 'functions/mcp-server/handler.ts'),
       handler: 'handler',
@@ -127,9 +127,9 @@ export class LambdaStack extends cdk.Stack {
       ],
     }));
 
-    // DynamoDB write: PutItem (capture_thought tool creates new thoughts)
+    // DynamoDB write: PutItem (capture), UpdateItem (update), DeleteItem (delete)
     mcpFn.addToRolePolicy(new iam.PolicyStatement({
-      actions: ['dynamodb:PutItem'],
+      actions: ['dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:DeleteItem'],
       resources: [table.tableArn],
     }));
 

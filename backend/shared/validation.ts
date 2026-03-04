@@ -70,6 +70,15 @@ export const captureThoughtParamsSchema = z.object({
   content: z.string().min(1).max(MAX_CONTENT_LENGTH),
 });
 
+export const updateThoughtParamsSchema = z.object({
+  id: z.string().uuid(),
+  content: z.string().min(1).max(MAX_CONTENT_LENGTH),
+});
+
+export const deleteThoughtParamsSchema = z.object({
+  id: z.string().uuid(),
+});
+
 // --- Inferred types ---
 
 export type SlackChallenge = z.infer<typeof slackChallengeSchema>;
@@ -79,3 +88,5 @@ export type McpRequest = z.infer<typeof mcpRequestSchema>;
 export type SearchThoughtsParams = z.infer<typeof searchThoughtsParamsSchema>;
 export type ListThoughtsParams = z.infer<typeof listThoughtsParamsSchema>;
 export type CaptureThoughtParams = z.infer<typeof captureThoughtParamsSchema>;
+export type UpdateThoughtParams = z.infer<typeof updateThoughtParamsSchema>;
+export type DeleteThoughtParams = z.infer<typeof deleteThoughtParamsSchema>;

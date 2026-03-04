@@ -2,6 +2,8 @@ import {
   DynamoDBClient,
   PutItemCommand,
   UpdateItemCommand,
+  GetItemCommand,
+  DeleteItemCommand,
   QueryCommand,
   ScanCommand,
   BatchGetItemCommand,
@@ -103,6 +105,30 @@ export async function updateThought(params: {
         ':updated_at': now,
         ':thought_type': params.metadata.type,
       }),
+    }),
+  );
+}
+
+/** Get a single thought by ID. Returns null if not found. */
+export async function getThoughtById(id: string): Promise<ThoughtRecord | null> {
+  const result = await client.send(
+    new GetItemCommand({
+      TableName: TABLE_NAME,
+      Key: marshall({ PK: 'THOUGHT', SK: `thought#${id}` }),
+    }),
+  );
+
+  if (!result.Item) return null;
+
+  return toThoughtRecord(unmarshall(result.Item));
+}
+
+/** Permanently delete a thought by ID. */
+export async function deleteThought(id: string): Promise<void> {
+  await client.send(
+    new DeleteItemCommand({
+      TableName: TABLE_NAME,
+      Key: marshall({ PK: 'THOUGHT', SK: `thought#${id}` }),
     }),
   );
 }

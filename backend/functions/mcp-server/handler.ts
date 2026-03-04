@@ -7,6 +7,8 @@ import { searchThoughts } from './tools/search-thoughts';
 import { listThoughts } from './tools/list-thoughts';
 import { thoughtStats } from './tools/thought-stats';
 import { captureThought } from './tools/capture-thought';
+import { updateThoughtTool } from './tools/update-thought';
+import { deleteThoughtTool } from './tools/delete-thought';
 import { ZodError } from 'zod';
 
 /**
@@ -101,6 +103,39 @@ const TOOL_DEFINITIONS = [
         },
       },
       required: ['content'],
+    },
+  },
+  {
+    name: 'update_thought',
+    description:
+      "Update an existing thought's content. The text will be re-embedded and metadata re-extracted.",
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        id: {
+          type: 'string',
+          description: 'The UUID of the thought to update',
+        },
+        content: {
+          type: 'string',
+          description: 'The new thought text (max 10,000 characters)',
+        },
+      },
+      required: ['id', 'content'],
+    },
+  },
+  {
+    name: 'delete_thought',
+    description: 'Permanently delete a thought by ID.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        id: {
+          type: 'string',
+          description: 'The UUID of the thought to delete',
+        },
+      },
+      required: ['id'],
     },
   },
 ];
@@ -230,6 +265,12 @@ async function handleToolCall(
         break;
       case 'capture_thought':
         result = await captureThought(toolArgs, logger);
+        break;
+      case 'update_thought':
+        result = await updateThoughtTool(toolArgs, logger);
+        break;
+      case 'delete_thought':
+        result = await deleteThoughtTool(toolArgs, logger);
         break;
       default:
         return jsonRpcError(id, METHOD_NOT_FOUND, `Unknown tool: ${toolName}`);
