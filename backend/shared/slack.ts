@@ -23,6 +23,7 @@ export async function postThreadReply(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ channel, thread_ts: threadTs, text }),
+    signal: AbortSignal.timeout(5_000),
   });
 
   if (!response.ok) {

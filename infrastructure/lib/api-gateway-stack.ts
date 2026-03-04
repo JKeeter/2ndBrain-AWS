@@ -65,13 +65,15 @@ export class ApiGatewayStack extends cdk.Stack {
       noAuth,
     );
 
-    // POST /mcp — MCP JSON-RPC endpoint
+    // /mcp — MCP Streamable HTTP endpoint (POST + GET + DELETE)
     const mcp = this.api.root.addResource('mcp');
-    mcp.addMethod(
-      'POST',
-      new apigateway.LambdaIntegration(lambdaFunctions['mcp-server'], { proxy: true }),
-      noAuth,
+    const mcpIntegration = new apigateway.LambdaIntegration(
+      lambdaFunctions['mcp-server'],
+      { proxy: true },
     );
+    mcp.addMethod('POST', mcpIntegration, noAuth);
+    mcp.addMethod('GET', mcpIntegration, noAuth);
+    mcp.addMethod('DELETE', mcpIntegration, noAuth);
 
     // GET /health — lightweight health check (mock integration, no Lambda)
     const health = this.api.root.addResource('health');
